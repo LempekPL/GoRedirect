@@ -1,0 +1,5 @@
+bun > https://bunbun.lempek.tk
+lk > https://lempek.tk
+api > https://api.lempek.tk
+test > https://lempek.tk/bbb
+get > https://lempek.tk/
