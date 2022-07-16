@@ -13,43 +13,32 @@ import (
 )
 
 var (
-	blocked = []string{"admin", "lempek", "lk", "lmpk", "create", "delete", "modify", "get"}
+	blocked = []string{"admin", "lempek", "lk", "lmpk", "create_redirect", "delete_redirect", "modify_redirect", "get"}
 	auth    string
 )
 
 const DefaultLink = "https://lmpk.tk"
 
-// Code is number code of error.
-// Status is string explanation of error
+// Success is bool type
+// Description is string explanation of error
 type responseCode struct {
-	Code   int    `json:"code"`
-	Status string `json:"status"`
+	Success     bool   `json:"success"`
+	Description string `json:"description"`
 }
 
-// 1** OK
-// 2** Common
-// 3** Getting
-// 4** Creating
-// 5** Modifying
-// 6** Deleting
 var (
-	CodeOK            = responseCode{100, "Done"}
-	CodeNoAuth        = responseCode{200, "No Auth header provided"}
-	CodeWrongAuth     = responseCode{201, "Wrong Auth header"}
-	CodeNameNotFound  = responseCode{204, "Name not found"}
-	CodeNoName        = responseCode{211, "No name provided"}
-	CodeNoLink        = responseCode{212, "No link provided"}
-	CodeNameBlocked   = responseCode{205, "Name is blocked"}
-	CodeNameWrong     = responseCode{401, "Name is not compliant with the pattern. Name pattern: ^[a-zA-Z0-9_.-]*$"}
-	CodeLinkWrong     = responseCode{402, "Link is not compliant with the pattern. Link pattern (only https): (https:\\/\\/)([\\da-z\\.-]+)\\.([a-z]{2,6})([\\/\\w\\.-]*)*\\/?"}
-	CodeNameLinkWrong = responseCode{403, "Name and link are not compliant with the pattern. Name pattern: ^[a-zA-Z0-9_.-]*$, Link pattern (only https): (https:\\/\\/)([\\da-z\\.-]+)\\.([a-z]{2,6})([\\/\\w\\.-]*)*\\/?"}
-	CodeAlreadyExist  = responseCode{405, "Name already exist"}
+	CodeOK            = responseCode{true, "Done"}
+	CodeNoAuth        = responseCode{false, "No Auth header provided"}
+	CodeWrongAuth     = responseCode{false, "Wrong Auth header"}
+	CodeNameNotFound  = responseCode{false, "Name not found"}
+	CodeNoName        = responseCode{false, "No name provided"}
+	CodeNoLink        = responseCode{false, "No link provided"}
+	CodeNameBlocked   = responseCode{false, "Name is blocked"}
+	CodeNameWrong     = responseCode{false, "Name is not compliant with the pattern. Name pattern: ^[a-zA-Z0-9_.-]*$"}
+	CodeLinkWrong     = responseCode{false, "Link is not compliant with the pattern. Link pattern (only https): (https:\\/\\/)([\\da-z\\.-]+)\\.([a-z]{2,6})([\\/\\w\\.-]*)*\\/?"}
+	CodeNameLinkWrong = responseCode{false, "Name and link are not compliant with the pattern. Name pattern: ^[a-zA-Z0-9_.-]*$, Link pattern (only https): (https:\\/\\/)([\\da-z\\.-]+)\\.([a-z]{2,6})([\\/\\w\\.-]*)*\\/?"}
+	CodeAlreadyExist  = responseCode{false, "Name already exist"}
 )
-
-//TODO
-// [+] error codes for creating, deleting and modifying redirects
-// [] check all the possible errors
-// [+] better password system
 
 func main() {
 	env, err := ioutil.ReadFile(".env")
@@ -59,9 +48,9 @@ func main() {
 	auth = strings.Split(string(env), "=")[1]
 	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
 
-	http.HandleFunc("/create", create)
-	http.HandleFunc("/delete", delete)
-	http.HandleFunc("/modify", modify)
+	http.HandleFunc("/create", create_redirect)
+	http.HandleFunc("/delete", delete_redirect)
+	http.HandleFunc("/modify", modify_redirect)
 	http.HandleFunc("/", redirector)
 
 	srv := &http.Server{
@@ -73,55 +62,63 @@ func main() {
 	log.Fatal(srv.ListenAndServe())
 }
 
-func create(w http.ResponseWriter, r *http.Request) {
+func create_redirect(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	name := r.URL.Query().Get("name")
 	link := r.URL.Query().Get("link")
 	pass := r.Header.Get("Auth")
+	var err error
 	if pass == "" {
-		json.NewEncoder(w).Encode(CodeNoAuth)
+		err = json.NewEncoder(w).Encode(CodeNoAuth)
 	} else if pass != auth {
-		json.NewEncoder(w).Encode(CodeWrongAuth)
+		err = json.NewEncoder(w).Encode(CodeWrongAuth)
 	} else if name == "" {
-		json.NewEncoder(w).Encode(CodeNoName)
+		err = json.NewEncoder(w).Encode(CodeNoName)
 	} else if link == "" {
-		json.NewEncoder(w).Encode(CodeNoLink)
+		err = json.NewEncoder(w).Encode(CodeNoLink)
 	} else {
 		resp := createRedirect(name, link)
 		responseHandler(w, resp)
 	}
-
+	if err != nil {
+		return
+	}
 }
 
-func delete(w http.ResponseWriter, r *http.Request) {
+func delete_redirect(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	name := r.URL.Query().Get("name")
 	pass := r.Header.Get("Auth")
+	var err error
 	if pass == "" {
-		json.NewEncoder(w).Encode(CodeNoAuth)
+		err = json.NewEncoder(w).Encode(CodeNoAuth)
 	} else if pass != auth {
-		json.NewEncoder(w).Encode(CodeWrongAuth)
+		err = json.NewEncoder(w).Encode(CodeWrongAuth)
 	} else if name == "" {
-		json.NewEncoder(w).Encode(CodeNoName)
+		err = json.NewEncoder(w).Encode(CodeNoName)
 	} else {
 		resp := deleteRedirect(name)
 		responseHandler(w, resp)
 	}
+	if err != nil {
+		return
+	}
 }
 
-func modify(w http.ResponseWriter, r *http.Request) {
+func modify_redirect(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	name := r.URL.Query().Get("name")
 	link := r.URL.Query().Get("link")
 	pass := r.Header.Get("Auth")
+	var err error
 	if pass == "" {
-		json.NewEncoder(w).Encode(CodeNoAuth)
+		err = json.NewEncoder(w).Encode(CodeNoAuth)
 	} else if pass != auth {
-		json.NewEncoder(w).Encode(CodeWrongAuth)
+		err = json.NewEncoder(w).Encode(CodeWrongAuth)
 	} else if name == "" {
-		json.NewEncoder(w).Encode(CodeNoName)
+		err = json.NewEncoder(w).Encode(CodeNoName)
 	} else if link == "" {
-		json.NewEncoder(w).Encode(CodeNoLink)
+		err = json.NewEncoder(w).Encode(CodeNoLink)
 	} else {
 		prevLink := getRedirect(name)
 		resp := deleteRedirect(name)
@@ -135,11 +132,14 @@ func modify(w http.ResponseWriter, r *http.Request) {
 			responseHandler(w, resp)
 		}
 	}
+	if err != nil {
+		return
+	}
 }
 
 func createRedirect(name, link string) string {
 	match1, _ := regexp.MatchString("^[a-zA-Z0-9_.-]*$", name)
-	match2, _ := regexp.MatchString("(https:\\/\\/)([\\da-z\\.-]+)\\.([a-z]{2,6})([\\/\\w\\.-]*)*\\/?", link)
+	match2, _ := regexp.MatchString("(https://)([\\da-z.-]+)\\.([a-z]{2,6})([/\\w.-]*)*/?", link)
 	if contains(blocked, name) {
 		return "name-is-blocked"
 	} else if getRedirect(name) != "" {
@@ -236,30 +236,34 @@ func redirector(w http.ResponseWriter, r *http.Request) {
 }
 
 func responseHandler(w http.ResponseWriter, response string) {
+	var err error
 	switch response {
 	case "created-redirect":
-		json.NewEncoder(w).Encode(CodeOK)
+		err = json.NewEncoder(w).Encode(CodeOK)
 		break
 	case "deleted-redirect":
-		json.NewEncoder(w).Encode(CodeOK)
+		err = json.NewEncoder(w).Encode(CodeOK)
 		break
 	case "name-is-blocked":
-		json.NewEncoder(w).Encode(CodeNameBlocked)
+		err = json.NewEncoder(w).Encode(CodeNameBlocked)
 		break
 	case "name-already-exist":
-		json.NewEncoder(w).Encode(CodeAlreadyExist)
+		err = json.NewEncoder(w).Encode(CodeAlreadyExist)
 		break
 	case "name-not-accepted":
-		json.NewEncoder(w).Encode(CodeNameWrong)
+		err = json.NewEncoder(w).Encode(CodeNameWrong)
 		break
 	case "link-not-accepted":
-		json.NewEncoder(w).Encode(CodeLinkWrong)
+		err = json.NewEncoder(w).Encode(CodeLinkWrong)
 		break
 	case "name-link-not-accepted":
-		json.NewEncoder(w).Encode(CodeNameLinkWrong)
+		err = json.NewEncoder(w).Encode(CodeNameLinkWrong)
 		break
 	case "name-not-found":
-		json.NewEncoder(w).Encode(CodeNameNotFound)
+		err = json.NewEncoder(w).Encode(CodeNameNotFound)
 		break
+	}
+	if err != nil {
+		log.Fatalln(err)
 	}
 }
